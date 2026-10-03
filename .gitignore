@@ -6,3 +6,12 @@ node_modules/
 vendor/
 *.log
 Anh
+# Bỏ qua file README phụ (không phải README.md chính)
+DAY2_README.txt
+
+# Bỏ qua file nén
+*.zip
+
+# Bỏ qua thư mục backup
+backup-day1/
+backup/

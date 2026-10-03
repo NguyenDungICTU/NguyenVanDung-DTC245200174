@@ -1,13 +1,12 @@
 {
   "name": "quiz-app",
-  "version": "1.0.0",
-  "description": "Quiz system for DevOps deployment course",
+  "version": "3.0.0",
+  "description": "Quiz system for DevOps deployment course - Day 3",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": {"start": "node server.js"},
   "dependencies": {
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
     "mysql2": "^3.14.4"
   }
 }
