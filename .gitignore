@@ -1,4 +1,3 @@
-```gitignore
 # Environment variables and secrets
 .env
 .env.*
@@ -28,4 +27,3 @@ DAY2_README.txt
 .idea/
 .DS_Store
 Thumbs.db
-```

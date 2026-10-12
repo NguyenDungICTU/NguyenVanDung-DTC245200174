@@ -112,6 +112,7 @@ services:
       - prometheus
     networks:
       - monitoring_net
+      - logging_net
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.52.0
@@ -144,13 +145,45 @@ services:
       - backend_net
       - monitoring_net
 
+  loki:
+    image: grafana/loki:3.7.8
+    container_name: quiz-loki
+    restart: unless-stopped
+    command:
+      - "-config.file=/etc/loki/loki-config.yml"
+    volumes:
+      - ./logging/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    networks:
+      - logging_net
+      - monitoring_net
+
+  promtail:
+    image: grafana/promtail:3.5.0
+    container_name: quiz-promtail
+    restart: unless-stopped
+    command:
+      - "-config.file=/etc/promtail/config.yml"
+    volumes:
+      - ./logging/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - promtail_positions:/tmp
+    depends_on:
+      - loki
+    networks:
+      - logging_net
+
 volumes:
   mysql_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  promtail_positions:
 
 networks:
   frontend_net:
   backend_net:
     internal: true
   monitoring_net:
+  logging_net:
