@@ -1,0 +1,8 @@
+# Demo/lab credentials only. This file is a template and is safe to commit.
+# Copy to monitoring/.my.cnf; Git ignores that local file.
+# For a real deployment, replace exporter_password with a strong secret.
+[client]
+user=exporter
+password=exporter_password
+host=db
+port=3306

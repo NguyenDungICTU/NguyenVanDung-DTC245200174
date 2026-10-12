@@ -61,7 +61,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Keep this only for lab/demo DB inspection; Nginx is the app entrypoint.
+    # Lab/demo database admin UI; app itself remains behind Nginx.
     ports:
       - "8080:80"
     networks:
@@ -82,10 +82,75 @@ services:
     networks:
       - frontend_net
 
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: quiz-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - cadvisor
+      - mysqld-exporter
+    networks:
+      - monitoring_net
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    container_name: quiz-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring_net
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.0
+    container_name: quiz-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring_net
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.17.2
+    container_name: quiz-mysqld-exporter
+    restart: unless-stopped
+    command:
+      - "--config.my-cnf=/cfg/.my.cnf"
+    volumes:
+      - ./monitoring/.my.cnf:/cfg/.my.cnf:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend_net
+      - monitoring_net
+
 volumes:
   mysql_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   frontend_net:
   backend_net:
     internal: true
+  monitoring_net:

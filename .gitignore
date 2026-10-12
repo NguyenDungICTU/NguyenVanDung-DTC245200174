@@ -1,17 +1,31 @@
+```gitignore
+# Environment variables and secrets
 .env
+.env.*
+!.env.example
+monitoring/.my.cnf
+
+# TLS private keys and certificates
 nginx/certs/*.key
 nginx/certs/*.crt
-__pycache__/
+
+# Dependencies and generated files
 node_modules/
 vendor/
+__pycache__/
+*.py[cod]
 *.log
-Anh
-# Bỏ qua file README phụ (không phải README.md chính)
+
+# Archives and backups
+*.zip
+backup/
+backup-*/
+backup-day*/
 DAY2_README.txt
 
-# Bỏ qua file nén
-*.zip
-
-# Bỏ qua thư mục backup
-backup-day1/
-backup/
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+```
