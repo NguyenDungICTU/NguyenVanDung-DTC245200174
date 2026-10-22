@@ -77,6 +77,52 @@ function esc(value) {
     .replace(/'/g, "&#039;");
 }
 
+/* ============================================================
+   PAGINATION HELPER (server-side render)
+   ============================================================ */
+function buildPagination({ basePath = "/", params = {}, page, pages, ajax = false }) {
+  if (pages <= 1) return "";
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, v); });
+
+  const link = (n, label, cls = "") => {
+    const p = new URLSearchParams(qs);
+    if (n > 1) p.set("page", n); else p.delete("page");
+    const href = `${basePath}?${p.toString()}`;
+    const c = cls ? ` class="${cls}"` : "";
+    const data = ajax ? ` data-page="${n}"` : "";
+    return `<a href="${href}"${c}${data}>${label}</a>`;
+  };
+
+  const parts = [];
+  parts.push(page > 1
+    ? link(page - 1, "← Trước", "btn btn-ghost btn-sm")
+    : `<span class="btn btn-ghost btn-sm disabled">← Trước</span>`);
+
+  const windowSize = 1;
+  const nums = new Set([1, pages]);
+  for (let n = page - windowSize; n <= page + windowSize; n++) {
+    if (n >= 1 && n <= pages) nums.add(n);
+  }
+  const sorted = [...nums].sort((a, b) => a - b);
+  let prev = 0;
+  for (const n of sorted) {
+    if (n - prev > 1) parts.push(`<span class="pagination-ellipsis">…</span>`);
+    if (n === page) {
+      parts.push(`<span class="current" aria-current="page">${n}</span>`);
+    } else {
+      parts.push(link(n, String(n)));
+    }
+    prev = n;
+  }
+
+  parts.push(page < pages
+    ? link(page + 1, "Sau →", "btn btn-ghost btn-sm")
+    : `<span class="btn btn-ghost btn-sm disabled">Sau →</span>`);
+
+  return `<nav class="pagination" aria-label="Phân trang">${parts.join("")}</nav>`;
+}
+
 const CSS = `
 :root{--bg:#f5f7fb;--bg-card:#fff;--bg-soft:#eef1f6;--text:#1e293b;--muted:#64748b;--primary:#2563eb;--primary-dark:#1d4ed8;--primary-soft:#dbeafe;--success:#16a34a;--danger:#dc2626;--warning:#d97706;--border:#e2e8f0;--shadow:0 1px 3px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06);--radius:12px;--nav-h:56px;--hero:#1d4ed8}
 [data-theme="dark"]{--bg:#0f172a;--bg-card:#1e293b;--bg-soft:#334155;--text:#f1f5f9;--muted:#94a3b8;--primary:#38bdf8;--primary-dark:#0ea5e9;--primary-soft:rgba(56,189,248,.15);--border:rgba(148,163,184,.15);--shadow:0 10px 40px rgba(0,0,0,.35);--hero:#1e3a8a}
@@ -147,6 +193,8 @@ th{color:var(--muted);font-size:.8rem;text-transform:uppercase}
 .pagination{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;margin:24px 0}
 .pagination a,.pagination span{padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--bg-card)}
 .pagination .current{background:var(--primary);color:white}
+.pagination-ellipsis{padding:8px 4px;color:var(--muted);border:0;background:transparent}
+.pagination .btn{padding:6px 10px}
 .admin-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:28px 0 16px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .detail-layout{display:grid;grid-template-columns:1fr 280px;gap:20px}
@@ -258,17 +306,86 @@ app.get("/", async (req, res) => {
       <div class="quiz-meta"><span>${qz.question_count||0} câu</span><span>${qz.attempt_count||0} lượt làm</span><span>⏱ ${qz.duration_minutes} phút</span></div>
       <div class="quiz-foot">bởi ${esc(qz.author||"Hệ thống")} · ${qz.created_at?new Date(qz.created_at).toLocaleDateString("vi-VN"):""}</div>
       <a href="/quiz/${qz.id}" class="btn btn-primary btn-sm">Xem đề thi →</a></article>`).join("") || '<p class="empty">Không tìm thấy đề thi phù hợp.</p>';
-    const qs = new URLSearchParams(); if(q)qs.set("q",q);if(tag)qs.set("tag",tag);
-    const pagination = Array.from({length:pages},(_,i)=>i+1).filter(n=>n===1||n===pages||Math.abs(n-safePage)<=1)
-      .map(n=>n===safePage?`<span class="current">${n}</span>`:`<a href="/?${qs.toString()}&page=${n}">${n}</a>`).join("");
+
+    // >>> PAGINATION MỚI (server-side) <<<
+    const pagination = buildPagination({
+      basePath: "/",
+      params: { q, tag },
+      page: safePage,
+      pages
+    });
+
     const tagLinks = ['Tất cả',...PREDEFINED_TAGS].map(t=>{const val=t==='Tất cả'?'':t;return `<a href="/?${q?'q='+encodeURIComponent(q)+'&':''}${val?'tag='+encodeURIComponent(val):''}" style="${tag===val?'background:var(--primary);color:white':''}">${esc(t)}</a>`}).join("");
     const body = `<div class="container"><section class="hero-banner"><h1>Khám phá đề thi, học theo cách của bạn</h1>
       <p>Tìm đề theo tên, nội dung hoặc chủ đề. Tìm kiếm không phân biệt dấu tiếng Việt.</p>
       <form class="search-row" id="searchForm" method="get" action="/"><input id="quizSearch" name="q" value="${esc(q)}" placeholder="Ví dụ: mang may tinh, Docker, bao mat..." autocomplete="off"><input type="hidden" name="tag" value="${esc(tag)}"><button type="submit">Tìm</button></form>
       </section><div class="section-head"><h2>Chủ đề đề thi</h2><span class="count">Chọn tag để lọc</span></div>
       <div class="tag-filter">${tagLinks}</div><div class="section-head"><h2>Danh sách đề thi</h2><span class="count" id="resultCount">${total} đề · trang ${safePage}/${pages}</span></div>
-      <div class="quiz-grid" id="quizGrid">${cards}</div><nav class="pagination">${pagination}</nav></div>
-      <script>(function(){const i=document.getElementById('quizSearch'),g=document.getElementById('quizGrid'),f=document.getElementById('searchForm'),p=document.querySelector('.pagination'),count=document.getElementById('resultCount');let t=0,seq=0,currentPage=1;function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}function drawPages(d){p.innerHTML='';if(d.pages<=1)return;const ns=[];for(let n=1;n<=d.pages;n++)if(n===1||n===d.pages||Math.abs(n-d.page)<=1)ns.push(n);const base=new URLSearchParams();if(i.value.trim())base.set('q',i.value.trim());const tag=f.querySelector('[name=tag]').value;if(tag)base.set('tag',tag);ns.forEach(n=>{if(n===d.page)p.insertAdjacentHTML('beforeend','<span class="current" aria-current="page">'+n+'</span>');else{const u=new URLSearchParams(base);u.set('page',n);p.insertAdjacentHTML('beforeend','<a href="/?'+u.toString()+'" data-page="'+n+'">'+n+'</a>');}});}async function run(page=1){const id=++seq;currentPage=page;try{const u=new URLSearchParams({q:i.value.trim(),tag:f.querySelector('[name=tag]').value,page:String(page)});const r=await fetch('/api/quizzes?'+u);if(!r.ok)throw new Error('Request failed');const d=await r.json();if(id!==seq)return;currentPage=d.page;g.innerHTML=d.items.length?d.items.map(q=>'<article class="quiz-card"><h3><a href="/quiz/'+q.id+'">'+esc(q.title)+'</a></h3><p class="desc">'+esc(q.description||'')+'</p><div class="tag-row">'+q.tags.map(t=>'<a class="tag-chip" href="/?tag='+encodeURIComponent(t)+'">'+esc(t)+'</a>').join('')+'</div><div class="quiz-meta"><span>'+q.question_count+' câu</span><span>'+q.attempt_count+' lượt làm</span><span>⏱ '+q.duration_minutes+' phút</span></div><a href="/quiz/'+q.id+'" class="btn btn-primary btn-sm">Xem đề thi →</a></article>').join(''):'<p class="empty">Không tìm thấy đề phù hợp.</p>';count.textContent=d.total+' đề thi · trang '+d.page+'/'+d.pages;drawPages(d);const u2=new URLSearchParams();if(i.value.trim())u2.set('q',i.value.trim());if(f.querySelector('[name=tag]').value)u2.set('tag',f.querySelector('[name=tag]').value);if(page>1)u2.set('page',page);history.replaceState(null,'','/?'+u2.toString());}catch(e){if(id===seq)g.innerHTML='<p class="empty">Không thể tìm đề thi lúc này.</p>';}}p.addEventListener('click',e=>{const a=e.target.closest('a[data-page]');if(a){e.preventDefault();run(Number(a.dataset.page));}});i.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>run(1),220);});f.querySelector('[name=tag]').addEventListener('change',()=>run(1));f.addEventListener('submit',e=>{e.preventDefault();run(1);});})();</script>`;
+      <div class="quiz-grid" id="quizGrid">${cards}</div>${pagination}</div>
+      <script>(function(){
+        const i=document.getElementById('quizSearch'),g=document.getElementById('quizGrid'),f=document.getElementById('searchForm'),p=document.querySelector('.pagination'),count=document.getElementById('resultCount');
+        let t=0,seq=0;
+        function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+        function drawPages(d){
+          if(!p){return;}
+          p.innerHTML='';
+          if(d.pages<=1){p.style.display='none';return;}
+          p.style.display='flex';
+          const base=new URLSearchParams();
+          if(i.value.trim())base.set('q',i.value.trim());
+          const tag=f.querySelector('[name=tag]').value;
+          if(tag)base.set('tag',tag);
+          const makeLink=(n,label,cls)=>{
+            const u=new URLSearchParams(base);
+            if(n>1)u.set('page',n);
+            const href='/'+(u.toString()?'?'+u.toString():'');
+            const c=cls?' class="'+cls+'"':'';
+            return '<a href="'+href+'" data-page="'+n+'"'+c+'>'+label+'</a>';
+          };
+          const parts=[];
+          parts.push(d.page>1?makeLink(d.page-1,'← Trước','btn btn-ghost btn-sm'):'<span class="btn btn-ghost btn-sm disabled">← Trước</span>');
+          const nums=new Set([1,d.pages]);
+          for(let n=d.page-1;n<=d.page+1;n++)if(n>=1&&n<=d.pages)nums.add(n);
+          const sorted=[...nums].sort((a,b)=>a-b);
+          let prev=0;
+          for(const n of sorted){
+            if(n-prev>1)parts.push('<span class="pagination-ellipsis">…</span>');
+            parts.push(n===d.page?'<span class="current" aria-current="page">'+n+'</span>':makeLink(n,String(n)));
+            prev=n;
+          }
+          parts.push(d.page<d.pages?makeLink(d.page+1,'Sau →','btn btn-ghost btn-sm'):'<span class="btn btn-ghost btn-sm disabled">Sau →</span>');
+          p.innerHTML=parts.join('');
+        }
+        async function run(page=1){
+          const id=++seq;
+          try{
+            const u=new URLSearchParams({q:i.value.trim(),tag:f.querySelector('[name=tag]').value,page:String(page)});
+            const r=await fetch('/api/quizzes?'+u);
+            if(!r.ok)throw new Error('Request failed');
+            const d=await r.json();
+            if(id!==seq)return;
+            g.innerHTML=d.items.length?d.items.map(q=>'<article class="quiz-card"><h3><a href="/quiz/'+q.id+'">'+esc(q.title)+'</a></h3><p class="desc">'+esc(q.description||'')+'</p><div class="tag-row">'+q.tags.map(t=>'<a class="tag-chip" href="/?tag='+encodeURIComponent(t)+'">'+esc(t)+'</a>').join('')+'</div><div class="quiz-meta"><span>'+q.question_count+' câu</span><span>'+q.attempt_count+' lượt làm</span><span>⏱ '+q.duration_minutes+' phút</span></div><a href="/quiz/'+q.id+'" class="btn btn-primary btn-sm">Xem đề thi →</a></article>').join(''):'<p class="empty">Không tìm thấy đề phù hợp.</p>';
+            count.textContent=d.total+' đề thi · trang '+d.page+'/'+d.pages;
+            drawPages(d);
+            const u2=new URLSearchParams();
+            if(i.value.trim())u2.set('q',i.value.trim());
+            if(f.querySelector('[name=tag]').value)u2.set('tag',f.querySelector('[name=tag]').value);
+            if(page>1)u2.set('page',page);
+            history.replaceState(null,'','/'+(u2.toString()?'?'+u2.toString():''));
+          }catch(e){
+            if(id===seq)g.innerHTML='<p class="empty">Không thể tìm đề thi lúc này.</p>';
+          }
+        }
+        if(p){
+          p.addEventListener('click',e=>{
+            const a=e.target.closest('a[data-page]');
+            if(a){e.preventDefault();run(Number(a.dataset.page));}
+          });
+        }
+        i.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>run(1),220);});
+        f.querySelector('[name=tag]').addEventListener('change',()=>run(1));
+        f.addEventListener('submit',e=>{e.preventDefault();run(1);});
+      })();</script>`;
     res.send(layout("Khám phá đề thi", body, req.session.user, "home"));
   } catch (e) { console.error(e); res.status(500).send(layout("Lỗi", '<div class="container"><p>Không tải được dữ liệu.</p></div>', req.session.user)); }
 });
@@ -925,11 +1042,12 @@ app.get("/admin/users", requireAdmin, async (req, res) => {
     [...params, pageSize, offset]
   );
   const msg = req.query.msg ? `<div class="alert alert-ok">${esc(req.query.msg)}</div>` : "";
-  const pagination = (totalPages > 1) ? `<nav class="pagination" aria-label="Phân trang">
-    ${page > 1 ? `<a class="btn btn-ghost btn-sm" href="/admin/users?q=${encodeURIComponent(q)}&role=${encodeURIComponent(role)}&page=${page-1}">← Trước</a>` : `<span class="btn btn-ghost btn-sm disabled">← Trước</span>`}
-    <span class="page-info">Trang <strong>${page}</strong> / ${totalPages}</span>
-    ${page < totalPages ? `<a class="btn btn-ghost btn-sm" href="/admin/users?q=${encodeURIComponent(q)}&role=${encodeURIComponent(role)}&page=${page+1}">Sau →</a>` : `<span class="btn btn-ghost btn-sm disabled">Sau →</span>`}
-  </nav>` : "";
+  const pagination = buildPagination({
+    basePath: "/admin/users",
+    params: { q, role },
+    page,
+    pages: totalPages
+  });
   const body = `
     <div class="container admin-list-page">
       <h1 class="section-title">Quản lý thành viên</h1>
@@ -1007,11 +1125,12 @@ app.get("/admin/quizzes", requireAdmin, async (req, res) => {
     GROUP BY q.id ORDER BY q.id DESC LIMIT ? OFFSET ?
   `, [...params, pageSize, offset]);
   const msg = req.query.msg ? `<div class="alert alert-ok">${esc(req.query.msg)}</div>` : "";
-  const pagination = totalPages > 1 ? `<nav class="pagination" aria-label="Phân trang">
-    ${page > 1 ? `<a class="btn btn-ghost btn-sm" href="/admin/quizzes?q=${encodeURIComponent(q)}&tag=${encodeURIComponent(tag)}&page=${page-1}">← Trước</a>` : `<span class="btn btn-ghost btn-sm disabled">← Trước</span>`}
-    <span class="page-info">Trang <strong>${page}</strong> / ${totalPages}</span>
-    ${page < totalPages ? `<a class="btn btn-ghost btn-sm" href="/admin/quizzes?q=${encodeURIComponent(q)}&tag=${encodeURIComponent(tag)}&page=${page+1}">Sau →</a>` : `<span class="btn btn-ghost btn-sm disabled">Sau →</span>`}
-  </nav>` : "";
+  const pagination = buildPagination({
+    basePath: "/admin/quizzes",
+    params: { q, tag },
+    page,
+    pages: totalPages
+  });
   const body = `
     <div class="container admin-list-page">
       <h1 class="section-title">Quản lý đề thi</h1>
