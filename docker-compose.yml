@@ -1,3 +1,4 @@
+
 services:
   app:
     build: ./app
@@ -30,6 +31,8 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "127.0.0.1:3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d:ro
@@ -58,13 +61,17 @@ services:
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
+      UPLOAD_LIMIT: 64M
+    # Publish phpMyAdmin on host port 8081. Binding without a host IP
+    # avoids loopback-only publishing issues on some Docker Desktop setups.
+    # Development use only: this may expose phpMyAdmin to your local network.
+    ports:
+      - "127.0.0.1:8081:80"
     depends_on:
       db:
         condition: service_healthy
-    # Lab/demo database admin UI; app itself remains behind Nginx.
-    ports:
-      - "8080:80"
     networks:
+      - frontend_net
       - backend_net
 
   nginx:
@@ -93,7 +100,7 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     depends_on:
       - cadvisor
       - mysqld-exporter
@@ -105,7 +112,7 @@ services:
     container_name: quiz-grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
@@ -121,6 +128,8 @@ services:
     privileged: true
     devices:
       - /dev/kmsg
+    ports:
+      - "127.0.0.1:8080:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro

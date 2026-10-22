@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev
 COPY server.js ./
+COPY seed_demo.js ./
 RUN addgroup -S quiz && adduser -S quiz -G quiz && chown -R quiz:quiz /app
 USER quiz
 EXPOSE 3000

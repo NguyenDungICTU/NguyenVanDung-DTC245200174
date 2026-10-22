@@ -1,12 +1,16 @@
 {
   "name": "quiz-app",
-  "version": "3.0.0",
-  "description": "Quiz system for DevOps deployment course - Day 3",
+  "version": "4.0.0",
+  "description": "Quiz / Thi trac nghiem system - improved frontend & features",
   "main": "server.js",
-  "scripts": {"start": "node server.js"},
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "express": "^5.1.0",
     "express-session": "^1.18.2",
-    "mysql2": "^3.14.4"
+    "mysql2": "^3.14.4",
+    "nodemailer": "^7.0.5"
   }
 }
